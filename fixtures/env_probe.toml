@@ -1,0 +1,22 @@
+# Policy for the environment probe.
+#
+# The point of this one is the `[upstream.env]` section: the sandbox starts the
+# server with a cleared environment plus whatever is named here.
+
+name = "env-probe"
+
+[upstream]
+transport = "stdio"
+command = "python"
+args = ["fixtures/env_probe.py"]
+
+[upstream.env]
+# One harmless variable, so the test can tell "passed through" from "inherited".
+SANDMAN_TEST_MARKER = "hello-from-the-policy"
+
+[tools]
+allow = ["show_env"]
+require_non_empty = true
+
+[network]
+allow_hosts = []

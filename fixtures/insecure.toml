@@ -1,0 +1,35 @@
+# Policy for the deliberately insecure fixture server.
+#
+# It exposes read_file, write_file, fetch_url and delete_everything with no
+# checks of its own. This policy is what stands in the way.
+
+name = "insecure-demo"
+
+# Top-level keys must come before any table: in TOML a bare key after a
+# `[table]` header belongs to that table, not the document root.
+audit_log = "scratch/audit.log"
+log_level = "info"
+
+[upstream]
+transport = "stdio"
+command = "python"
+args = ["fixtures/insecure_server.py"]
+
+[tools]
+allow = ["read_*", "fetch_url"]
+deny = ["delete_*"]
+require_non_empty = true
+
+[filesystem]
+# Paths are matched relative to the working directory. Absolute paths are never
+# normalized into relative ones, so this does not accidentally permit /etc/shadow.
+read = ["**"]
+write = ["scratch/**"]
+
+[network]
+allow_hosts = ["example.com"]
+allow_ports = [443]
+
+[limits]
+init_timeout_ms = 15000
+call_timeout_ms = 15000

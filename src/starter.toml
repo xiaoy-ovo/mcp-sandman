@@ -1,0 +1,51 @@
+# mcp-sandman policy
+#
+# Every field below is optional. Defaults are noted where they matter.
+#
+# TOML note: a bare key after a `[table]` header belongs to that table, not the
+# document root. So the top-level settings below all sit *before* the first
+# table on purpose.
+
+name = "my-server"
+log_level = "info"
+
+# Optional audit trail. Argument *names* are recorded, never values.
+# audit_log = "./audit.log"
+
+# Optional tripwire: refuse tool calls whose arguments look like credentials.
+# secret_patterns = ['sk-[A-Za-z0-9]{20,}', 'ghp_[A-Za-z0-9]{36}']
+
+[upstream]
+transport = "stdio"
+command = "__UPSTREAM_COMMAND__"
+args = __UPSTREAM_ARGS__
+
+# Which tools the agent may see and call. An empty allow list means "everything
+# the upstream exposes"; deny is applied on top of allow, and always wins.
+[tools]
+allow = []
+deny = ["delete_*"]
+# namespace = "myapp__"
+require_non_empty = true
+
+# Globs. read defaults to everything, write defaults to nothing — a sandbox you
+# can read but not modify is the safe place to start.
+[filesystem]
+read = ["**"]
+write = []
+
+# An empty allow_hosts means no outbound network at all.
+[network]
+allow_hosts = []
+allow_ports = []
+
+# "none" runs the server directly, enforcing only the rules above. Use a
+# container when the server itself is untrusted.
+# [isolation]
+# isolation = "container"
+# image = "node:22-slim"
+
+[limits]
+init_timeout_ms = 30000
+call_timeout_ms = 120000
+max_response_bytes = 8388608
