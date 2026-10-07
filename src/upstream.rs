@@ -13,6 +13,9 @@ use crate::config::{Config, Isolation, UpstreamSpec};
 use crate::error::{config_err, Result, SandmanError};
 use crate::protocol::{initialize_params, methods, Message};
 
+#[cfg(feature = "http")]
+pub use crate::http_upstream::HttpConnection;
+
 /// What the sandbox knows about one upstream tool.
 #[derive(Debug, Clone)]
 pub struct ToolInfo {
@@ -37,10 +40,14 @@ impl Upstream {
                 StdioConnection::spawn(config, command, args, env).await?,
             )),
             #[cfg(feature = "http")]
-            UpstreamSpec::Http { url, headers } => Ok(Self::Http(HttpConnection::new(
-                url.clone(),
-                headers.clone(),
-            ))),
+            UpstreamSpec::Http { url, headers } => Ok(Self::Http(
+                crate::http_upstream::HttpConnection::connect(
+                    url.clone(),
+                    headers.clone(),
+                    config.limits.init_timeout_ms,
+                )
+                .await?,
+            )),
             #[cfg(not(feature = "http"))]
             UpstreamSpec::Http { .. } => Err(SandmanError::HttpDisabled),
         }

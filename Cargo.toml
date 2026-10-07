@@ -43,9 +43,15 @@ optional = true
 default-features = false
 features = ["json", "rustls-tls", "stream"]
 
+[dependencies.futures-util]
+version = "0.3"
+optional = true
+default-features = false
+features = ["std"]
+
 [features]
 default = []
-http = ["dep:reqwest"]
+http = ["dep:reqwest", "dep:futures-util"]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

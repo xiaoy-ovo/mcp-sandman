@@ -3,6 +3,8 @@
 mod audit;
 mod config;
 mod error;
+#[cfg(feature = "http")]
+mod http_upstream;
 mod policy;
 mod protocol;
 mod proxy;
