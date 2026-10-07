@@ -32,6 +32,7 @@
   },
   "files": [
     "bin/mcp-sandman.js",
+    "bin/mcp-sandman.exe",
     "scripts/download.js",
     "index.js",
     "index.d.ts",
@@ -45,7 +46,8 @@
   "scripts": {
     "postinstall": "node scripts/download.js",
     "test": "node --test test/*.test.js",
-    "prepublishOnly": "npm run build:binaries"
+    "build:binary": "node scripts/build-binary.js",
+    "prepublishOnly": "npm run build:binary"
   },
   "os": [
     "darwin",

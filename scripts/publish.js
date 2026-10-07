@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 /**
- * Publish the npm package and its GitHub release assets.
+ * Publish the npm package.
  *
- *   node scripts/publish.js            # build, tag, publish, upload
- *   node scripts/publish.js --dry-run  # everything except the uploads
+ *   node scripts/publish.js --dry-run   # check, publish nothing
+ *   node scripts/publish.js             # check, then npm publish
  *
- * The npm package and the release must carry the same version: postinstall
- * fetches `v<version>` from the release, so a mismatched pair installs a
- * package whose download 404s.
+ * `prepublishOnly` runs the build first, so the bundled Windows binary is
+ * verified to exist and to answer `--version` before anything ships.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -18,18 +17,22 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DIST = path.join(ROOT, 'dist');
 const pkg = require('../package.json');
 
 const dryRun = process.argv.includes('--dry-run');
 const VERSION = pkg.version;
-const TAG = `v${VERSION}`;
 
 const log = (msg) => process.stderr.write(`${msg}\n`);
 
+/** npm is a .cmd shim on Windows and needs a shell to spawn. */
 function run(command, args, options = {}) {
   log(`> ${command} ${args.join(' ')}`);
-  execFileSync(command, args, { stdio: 'inherit', cwd: ROOT, ...options });
+  execFileSync(command, args, {
+    stdio: 'inherit',
+    cwd: ROOT,
+    ...(process.platform === 'win32' ? { shell: true } : {}),
+    ...options,
+  });
 }
 
 /** Run git and return its trimmed stdout. */
@@ -40,19 +43,22 @@ function git(...args) {
 function check() {
   const problems = [];
 
-  if (!fs.existsSync(DIST)) {
-    problems.push('dist/ is missing — run `node scripts/build-binaries.js` first');
-  } else {
-    const archives = fs.readdirSync(DIST).filter((f) => f.endsWith('.tar.gz'));
-    if (archives.length < 6) {
-      problems.push(`dist/ has ${archives.length} archives, expected 6`);
+  // The Windows binary must be present and runnable before publishing: it is
+  // what makes `npm i -g` work without a Rust toolchain.
+  const binary = path.join(
+    ROOT,
+    'bin',
+    process.platform === 'win32' ? 'mcp-sandman.exe' : 'mcp-sandman',
+  );
+  if (fs.existsSync(binary)) {
+    const size = fs.statSync(binary).size;
+    if (size < 1024) {
+      problems.push(`${path.basename(binary)} is only ${size} bytes; the build failed partway through`);
     }
-  }
-
-  const current = git('rev-parse', 'HEAD');
-  const tagExists = git('tag', '--list', TAG);
-  if (tagExists) {
-    problems.push(`${TAG} already exists — bump the version or delete the tag`);
+  } else if (process.platform === 'win32') {
+    problems.push('bin/mcp-sandman.exe is missing — run `npm run build:binary`');
+  } else {
+    log('note: no bundled binary for this platform; Windows users get one from the tarball, others build from source');
   }
 
   const status = git('status', '--porcelain');
@@ -72,22 +78,19 @@ function main() {
   check();
 
   if (dryRun) {
-    log(`\ndry run: would publish ${pkg.name}@${VERSION} with tag ${TAG}`);
-    for (const archive of fs.readdirSync(DIST)) {
-      log(`  dist/${archive}`);
-    }
+    const binary = path.join(
+      ROOT,
+      'bin',
+      process.platform === 'win32' ? 'mcp-sandman.exe' : 'mcp-sandman',
+    );
+    log(`\ndry run: would publish ${pkg.name}@${VERSION}`);
+    log(`  bundled binary: ${fs.existsSync(binary) ? `${binary} (${fs.statSync(binary).size} bytes)` : 'none'}`);
+    log(`  run: npm publish --access public`);
     return;
   }
 
-  // Tag first: the release and the npm tarball must agree on the version, and
-  // the tag is what postinstall resolves `latest/download` against.
-  run('git', ['tag', '-a', TAG, '-m', `Release ${TAG}`]);
-  run('git', ['push', 'origin', TAG]);
-
-  run('gh', ['release', 'create', TAG, ...fs.readdirSync(DIST).map((f) => path.join('dist', f)),
-    '--title', TAG,
-    '--generate-notes',
-  ]);
+  // `prepublishOnly` builds and verifies the binary, so this is the last step.
+  run('npm', ['publish', '--access', 'public']);
 
   log(`\npublished ${pkg.name}@${VERSION}`);
   log('install with:');

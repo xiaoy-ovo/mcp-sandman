@@ -32,20 +32,23 @@ the server — decides what happens.
 
 ## Install
 
-### npm
+### npm (works out of the box on Windows)
 
 ```bash
 npm install -g mcp-sandman
 ```
 
-The package looks for a prebuilt binary during install. **Read the support
-table below first — none are published yet.** When there is none the install
-still succeeds and prints how to build from source, because an npm package that
-fails its `postinstall` leaves you with a broken tree and no way to recover.
+**On Windows x86_64 the binary ships inside the package.** Install it and run
+it — no download step, no Rust toolchain, no Docker.
+
+Prebuilt binaries for macOS and Linux are **not published yet**; on those
+platforms the install prints how to build from source (see the table below).
+It warns rather than failing, because an npm package that fails its
+`postinstall` leaves behind a `node_modules` you cannot recover from.
 
 ### From source
 
-This works everywhere and is the only method guaranteed to work.
+Works everywhere, and is the only method guaranteed to.
 
 ```bash
 git clone https://github.com/xiaoy-ovo/mcp-sandman
@@ -76,15 +79,18 @@ export MCP_SANDMAN_BINARY=/path/to/mcp-sandman
 Keep the difference between *the code compiles here* and *there is a binary you
 can install* in mind.
 
-| Platform | Builds from source | Prebuilt binary |
+| Platform | Works after `npm install` | Builds from source |
 |---|---|---|
-| Windows x86_64 | verified in CI | not published |
-| macOS (Intel / Apple Silicon) | verified in CI | not published |
-| Linux x86_64 / arm64 (glibc) | verified in CI | not published |
+| Windows x86_64 | yes, binary is bundled | verified in CI |
+| macOS (Intel / Apple Silicon) | no, build from source | verified in CI |
+| Linux x86_64 / arm64 (glibc) | no, build from source | verified in CI |
 
-**CI compiles and tests on all three** — that is verified on every commit. What
-is *not* verified is a prebuilt binary download, because none has been published
-yet. Until they are, install from source.
+CI compiles and tests on all three, on every commit. The first column is extra
+work: Windows is the largest slice of the Node ecosystem, and people there
+should not have to install Rust to try this.
+
+Publishing binaries for the other two needs release assets. When those exist,
+this table gets updated.
 
 Two caveats that bite in practice:
 

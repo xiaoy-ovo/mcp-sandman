@@ -29,19 +29,22 @@ mcp-sandman 把这个假设反过来：**server 视为敌意，最终由策略�
 
 ## 安装
 
-### npm
+### npm（Windows 直接可用）
 
 ```bash
 npm install -g mcp-sandman
 ```
 
-安装时会去找预编译二进制。**先看下面的支持表格——目前一个都还没发布。** 找不到时
-安装仍然会成功，并提示你从源码编译：npm 包如果在 `postinstall` 阶段失败，会留下一个
-坏掉的 `node_modules`，而且没法恢复。
+**Windows x86_64：二进制直接打进包里**，装完就能用，不需要下载、不需要 Rust 工具链、
+不需要 Docker。
+
+macOS 和 Linux 的预编译二进制**还没发布**，这两个平台的安装过程会提示你从源码编译
+（原因见下面的平台表格）。npm 包在 `postinstall` 阶段失败会留下一个坏掉的
+`node_modules`，所以这里选择了警告而不是失败。
 
 ### 从源码编译
 
-这是唯一保证在任何平台都能用的方式。
+在任何平台都能用，也是唯一保证可用的方式。
 
 ```bash
 git clone https://github.com/xiaoy-ovo/mcp-sandman
@@ -71,14 +74,16 @@ export MCP_SANDMAN_BINARY=/path/to/mcp-sandman
 
 要分清两件事：**代码在这个平台能编译** ≠ **有二进制可以直接下载安装**。
 
-| 平台 | 源码编译 | 预编译二进制 |
+| 平台 | npm 装完能用 | 源码编译 |
 |---|---|---|
-| Windows x86_64 | CI 验证通过 | 未发布 |
-| macOS（Intel / Apple Silicon） | CI 验证通过 | 未发布 |
-| Linux x86_64 / arm64（glibc） | CI 验证通过 | 未发布 |
+| Windows x86_64 | ✅ 二进制在包里 | CI 验证通过 |
+| macOS（Intel / Apple Silicon） | ❌ 需源码编译 | CI 验证通过 |
+| Linux x86_64 / arm64（glibc） | ❌ 需源码编译 | CI 验证通过 |
 
-**CI 在这三个平台上都编译并跑测试**——每次提交都验证这点。*没有*被验证的是「下载预
-编译二进制」，因为一个都还没发布。在那之前，请从源码编译。
+CI 在这三个平台上都编译并跑测试，每次提交都验证。Windows 那一列是额外做了的——
+因为它是 Node 生态最大的一批用户，不该让他们先装 Rust。
+
+其他平台要出预编译版，需要 release assets，届时把表格里对应格子改掉。
 
 两个实际会踩的坑：
 

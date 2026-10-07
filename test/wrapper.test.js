@@ -73,6 +73,19 @@ test('package files list covers everything the entry points need', () => {
   }
 });
 
+test('the Windows binary ships in the tarball', () => {
+  // Windows users should never have to install Rust. The binary is listed
+  // explicitly and prepublishOnly builds it, so `npm i -g` on Windows works
+  // with no download step.
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.ok(
+    pkg.files.includes('bin/mcp-sandman.exe'),
+    'the Windows binary must be listed in files',
+  );
+  assert.equal(pkg.scripts.prepublishOnly, 'npm run build:binary');
+  assert.equal(pkg.scripts['build:binary'], 'node scripts/build-binary.js');
+});
+
 test('both READMEs ship and cross-link', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   assert.ok(pkg.files.includes('README.en.md'), 'the English README must ship too');
@@ -141,7 +154,7 @@ test('postinstall downloads but never fails the install', () => {
 test('every publish script parses as an ES module', () => {
   // A syntax error in a publishing script only surfaces at publish time, which
   // is the worst possible moment to find one. Parse them here instead.
-  const scripts = ['download.js', 'build-binaries.js', 'publish.js'];
+  const scripts = ['download.js', 'build-binary.js', 'publish.js', 'verify-install.js'];
   for (const name of scripts) {
     const file = path.join(ROOT, 'scripts', name);
     // `node --check` parses without executing, so this stays offline and safe.
@@ -153,9 +166,24 @@ test('every publish script parses as an ES module', () => {
 test('scripts do not mix Python-style rest parameters into JavaScript', () => {
   // Regression guard: publish.js shipped with `function git(*args)` once, which
   // is a syntax error that only appeared when the script was actually run.
-  for (const name of ['download.js', 'build-binaries.js', 'publish.js', '../index.js']) {
+  for (const name of ['download.js', 'build-binary.js', 'publish.js', 'verify-install.js']) {
     const file = path.join(ROOT, 'scripts', name);
     const source = fs.readFileSync(file, 'utf8');
     assert.doesNotMatch(source, /function \w+\(\*/, `${name} looks like it has a stray *`);
   }
+});
+
+test('scripts do not reference the removed dist/ build', () => {
+  // scripts/build-binaries.js produced six cross-compiled archives for the
+  // postinstall downloader. It was never run in release mode, so there are no
+  // release assets, and shipping a Windows-only npm package means dist/ is
+  // now dead weight. Nothing should still point at it.
+  for (const name of ['publish.js', 'download.js', 'build-binary.js']) {
+    const source = fs.readFileSync(path.join(ROOT, 'scripts', name), 'utf8');
+    assert.doesNotMatch(source, /dist\/|build-binaries/, `${name} still references dist/`);
+  }
+  assert.ok(
+    !fs.existsSync(path.join(ROOT, 'scripts', 'build-binaries.js')),
+    'build-binaries.js should be removed',
+  );
 });
