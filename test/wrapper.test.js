@@ -73,6 +73,23 @@ test('package files list covers everything the entry points need', () => {
   }
 });
 
+test('the postinstall script ships inside the tarball', () => {
+  // The `files` whitelist is applied at pack time, and postinstall runs from
+  // the installed tree. If the downloader is not listed, every install fails
+  // with "Cannot find module" before it can warn about anything.
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const script = pkg.scripts.postinstall.replace(/^node\s+/, '').trim();
+  assert.ok(script, 'postinstall should name a script');
+  assert.ok(
+    pkg.files.some((entry) => script.startsWith(entry)),
+    `postinstall runs \`${script}\`, which no entry in files covers`,
+  );
+  assert.ok(
+    fs.existsSync(path.join(ROOT, script)),
+    `${script} does not exist in the repo`,
+  );
+});
+
 test('the files list never names the bin directory itself', () => {
   // `files: ["bin/"]` ships whatever the developer happens to have built
   // there, including a Windows .exe in a package meant for every platform.

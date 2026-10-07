@@ -32,6 +32,7 @@
   },
   "files": [
     "bin/mcp-sandman.js",
+    "scripts/download.js",
     "index.js",
     "index.d.ts",
     "README.md",
