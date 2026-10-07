@@ -29,76 +29,60 @@ mcp-sandman 把这个假设反过来：**server 视为敌意，最终由策略�
 
 ## 安装
 
-### npm（Windows 直接可用）
+### 从源码（推荐）
+
+Rust 生态的标准装法，不需要任何额外权限：
+
+```bash
+cargo install --git https://github.com/xiaoy-ovo/mcp-sandman
+# 或者手动：
+git clone https://github.com/xiaoy-ovo/mcp-sandman
+cd mcp-sandman && cargo build --release
+```
+
+### 下载预编译二进制
+
+每次发布 tag 都会自动构建六个平台的二进制：
+
+| 平台 | 文件 |
+|---|---|
+| Windows x86_64 / arm64 | `mcp-sandman-x86_64-pc-windows-msvc.tar.gz` |
+| macOS Intel | `mcp-sandman-x86_64-apple-darwin.tar.gz` |
+| macOS Apple Silicon | `mcp-sandman-aarch64-apple-darwin.tar.gz` |
+| Linux x86_64 / arm64 | `mcp-sandman-*-unknown-linux-gnu.tar.gz` |
+
+从 [Releases 页](https://github.com/xiaoy-ovo/mcp-sandman/releases) 下载对应文件，解压即用：
+
+```bash
+tar -xzf mcp-sandman-x86_64-apple-darwin.tar.gz
+./mcp-sandman --version
+```
+
+### npm（Windows 最省事）
 
 ```bash
 npm install -g mcp-sandman
 ```
 
-**Windows x86_64：二进制直接打进包里**，装完就能用，不需要下载、不需要 Rust 工具链、
-不需要 Docker。
+Windows x86_64 的二进制直接打包在 npm 包里，装完即用。
 
-macOS 和 Linux 的预编译二进制**还没发布**，这两个平台的安装过程会提示你从源码编译
-（原因见下面的平台表格）。npm 包在 `postinstall` 阶段失败会留下一个坏掉的
-`node_modules`，所以这里选择了警告而不是失败。
-
-### 从源码编译
-
-在任何平台都能用，也是唯一保证可用的方式。
-
-```bash
-git clone https://github.com/xiaoy-ovo/mcp-sandman
-cd mcp-sandman
-
-cargo build --release
-# 二进制在 target/release/mcp-sandman（Windows 上是 .exe）
-
-# 加上 HTTP 上游支持（默认关闭，会引入 reqwest 依赖）：
-cargo build --release --features http
-```
-
-或者直接装到 PATH 上：
-
-```bash
-cargo install --path .              # 只支持 stdio，无额外依赖
-cargo install --path . --features http
-```
-
-如果自己编译过，想让 npm 包装器用你这份：
-
-```bash
-export MCP_SANDMAN_BINARY=/path/to/mcp-sandman
-```
+macOS 和 Linux 上这个包不含二进制，`postinstall` 会提示你去源码编译——它选择警告而不是失败，因为 npm 包在 `postinstall` 阶段失败会留下无法恢复的 `node_modules`。
 
 ## 平台支持
 
-要分清两件事：**代码在这个平台能编译** ≠ **有二进制可以直接下载安装**。
-
-| 平台 | npm 装完能用 | 源码编译 |
+| 平台 | 源码编译 | 预编译二进制 |
 |---|---|---|
-| Windows x86_64 | ✅ 二进制在包里 | CI 验证通过 |
-| macOS（Intel / Apple Silicon） | ❌ 需源码编译 | CI 验证通过 |
-| Linux x86_64 / arm64（glibc） | ❌ 需源码编译 | CI 验证通过 |
+| Windows x86_64 / arm64 | CI 验证通过 | ✅ |
+| macOS Intel / Apple Silicon | CI 验证通过 | ✅ |
+| Linux x86_64 / arm64（glibc） | CI 验证通过 | ✅ |
 
-CI 在这三个平台上都编译并跑测试，每次提交都验证。Windows 那一列是额外做了的——
-因为它是 Node 生态最大的一批用户，不该让他们先装 Rust。
-
-其他平台要出预编译版，需要 release assets，届时把表格里对应格子改掉。
+CI 在三个平台上都编译并跑测试；预编译二进制由 tag 触发的工作流产出。
 
 两个实际会踩的坑：
 
-- Linux 版本链接的是 **glibc**。在 Alpine（musl）上要用 musl target 编译，默认的
-  二进制跑不起来。
+- Linux 版本链接的是 **glibc**。在 Alpine（musl）上需要源码编译并指定 musl target。
 - `container` 隔离模式会调 `docker`。macOS 和 Linux 都能用；Windows 上需要 Docker
   Desktop 的 Linux 后端——Windows 容器跑不了这些策略预设的 node 镜像。
-
-编其他平台：
-
-```bash
-rustup target add x86_64-unknown-linux-gnu   # 也可以是 aarch64-unknown-linux-gnu、
-                                             # aarch64-apple-darwin 等
-cargo build --release --target <triple>
-```
 
 ## 使用
 
