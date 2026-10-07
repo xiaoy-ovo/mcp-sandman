@@ -2,6 +2,15 @@
 **/*.rs.bk
 *.pdb
 
+# Release archives produced by scripts/build-binaries.js.
+/dist
+
+# npm pack output and the binary the postinstall step drops in.
+/node_modules
+*.tgz
+/bin/mcp-sandman
+/bin/mcp-sandman.exe
+
 # Scratch space used by the fixtures and by audit_log in the example policies.
 /scratch
 

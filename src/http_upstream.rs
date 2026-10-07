@@ -11,8 +11,42 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::{json, Value};
 
 use crate::error::{Result, SandmanError};
-use crate::protocol::{Message, initialize_params, methods};
+use crate::protocol::{initialize_params, methods, Message};
 use crate::upstream::ToolInfo;
+
+/// Expand `${VAR}` references from the environment.
+///
+/// A token belongs in the environment, not in a config file that gets
+/// committed. An unset variable expands to the empty string and warns, rather
+/// than silently sending `Bearer ` and failing with an opaque 401.
+fn expand_env(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    let mut rest = value;
+
+    while let Some(start) = rest.find("${") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        let Some(end) = after.find('}') else {
+            // Unterminated `${` — take the rest literally.
+            out.push_str(&rest[start..]);
+            return out;
+        };
+        let name = &after[..end];
+        match std::env::var(name) {
+            Ok(expanded) => out.push_str(&expanded),
+            Err(_) => {
+                tracing::warn!(
+                    variable = name,
+                    "header references an environment variable that is not set; \
+                     expanding to an empty string"
+                );
+            }
+        }
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    out
+}
 
 /// Convert a transport-level reqwest failure into a sandbox error.
 ///
@@ -37,7 +71,10 @@ impl HttpConnection {
         Self {
             client: reqwest::Client::new(),
             url,
-            headers,
+            headers: headers
+                .into_iter()
+                .map(|(k, v)| (k, expand_env(&v)))
+                .collect(),
             next_id: AtomicU64::new(1),
         }
     }
@@ -51,7 +88,10 @@ impl HttpConnection {
         let id = self.take_id();
         let params = initialize_params("mcp-sandman");
         let response = self
-            .post(&Message::request(json!(id), methods::INITIALIZE, params), timeout_ms)
+            .post(
+                &Message::request(json!(id), methods::INITIALIZE, params),
+                timeout_ms,
+            )
             .await?;
 
         if let Some(error) = response.error {
@@ -63,10 +103,7 @@ impl HttpConnection {
 
         // The server expects this notification, and answers with 202 by design,
         // so a non-success status here is not worth failing on.
-        if let Err(e) = self
-            .notify(methods::INITIALIZED, json!({}))
-            .await
-        {
+        if let Err(e) = self.notify(methods::INITIALIZED, json!({})).await {
             tracing::debug!(error = %e, "upstream did not acknowledge the initialized notification");
         }
         Ok(())
@@ -138,9 +175,8 @@ impl HttpConnection {
 
         use futures_util::StreamExt;
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|e| {
-                SandmanError::Config(format!("SSE stream failed: {e}"))
-            })?;
+            let chunk =
+                chunk.map_err(|e| SandmanError::Config(format!("SSE stream failed: {e}")))?;
             buffer.push_str(&String::from_utf8_lossy(&chunk));
 
             while let Some(nl) = buffer.find('\n') {
@@ -201,9 +237,54 @@ impl HttpConnection {
 
 impl HttpConnection {
     /// Connect and handshake in one step, for the same interface stdio gets.
-    pub async fn connect(url: String, headers: BTreeMap<String, String>, timeout_ms: u64) -> Result<Self> {
+    pub async fn connect(
+        url: String,
+        headers: BTreeMap<String, String>,
+        timeout_ms: u64,
+    ) -> Result<Self> {
         let conn = Self::new(url, headers);
         conn.handshake(timeout_ms).await?;
         Ok(conn)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expand_env;
+
+    #[test]
+    fn expands_a_single_reference() {
+        // SAFETY: single-threaded test scope; no other thread reads this name.
+        unsafe { std::env::set_var("SANDMAN_TEST_TOKEN", "s3cret") };
+        assert_eq!(expand_env("Bearer ${SANDMAN_TEST_TOKEN}"), "Bearer s3cret");
+        unsafe { std::env::remove_var("SANDMAN_TEST_TOKEN") };
+    }
+
+    #[test]
+    fn expands_several_references() {
+        unsafe {
+            std::env::set_var("SANDMAN_TEST_A", "one");
+            std::env::set_var("SANDMAN_TEST_B", "two");
+        }
+        assert_eq!(expand_env("${SANDMAN_TEST_A}:${SANDMAN_TEST_B}"), "one:two");
+        unsafe {
+            std::env::remove_var("SANDMAN_TEST_A");
+            std::env::remove_var("SANDMAN_TEST_B");
+        }
+    }
+
+    #[test]
+    fn unset_variable_expands_to_empty() {
+        assert_eq!(expand_env("Bearer ${SANDMAN_DEFINITELY_UNSET}"), "Bearer ");
+    }
+
+    #[test]
+    fn leaves_literal_text_alone() {
+        assert_eq!(expand_env("no refs here"), "no refs here");
+    }
+
+    #[test]
+    fn unterminated_reference_is_literal() {
+        assert_eq!(expand_env("prefix ${UNTERMINATED"), "prefix ${UNTERMINATED");
     }
 }

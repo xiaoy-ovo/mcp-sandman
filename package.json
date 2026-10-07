@@ -1,0 +1,58 @@
+{
+  "name": "mcp-sandman",
+  "version": "0.1.0",
+  "description": "A policy-enforcing sandbox proxy for Model Context Protocol servers. Point your agent at it instead of the MCP server directly.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "sandbox",
+    "security",
+    "agent",
+    "proxy",
+    "claude",
+    "ai"
+  ],
+  "homepage": "https://github.com/xiaoy-ovo/mcp-sandman#readme",
+  "bugs": {
+    "url": "https://github.com/xiaoy-ovo/mcp-sandman/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiaoy-ovo/mcp-sandman.git"
+  },
+  "license": "MIT",
+  "author": "xiaoy-ovo",
+  "type": "module",
+  "bin": {
+    "mcp-sandman": "bin/mcp-sandman.js"
+  },
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "bin/",
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "postinstall": "node scripts/download.js",
+    "test": "node --test test/*.test.js",
+    "prepublishOnly": "npm run build:binaries"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "repository_url": "https://github.com/xiaoy-ovo/mcp-sandman"
+}

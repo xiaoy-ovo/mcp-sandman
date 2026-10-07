@@ -30,16 +30,41 @@ the server — decides what happens.
 
 ## Install
 
+### npm
+
+```bash
+npm install -g mcp-sandman
+```
+
+The package downloads the native binary for your platform during install
+(darwin/linux/win32 × x64/arm64) and puts a `mcp-sandman` command on your PATH.
+It works with no Rust toolchain, no Docker, and no runtime dependencies.
+
+If the machine is offline at install time, the install still succeeds and
+prints what to do — npm packages that fail their `postinstall` leave you with
+a broken tree and no way to recover.
+
+### Direct binary
+
 ```bash
 # macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/xiaoy-ovo/mcp-sandman/main/install.sh | sh
-
-# or from source
-cargo install --path .
 ```
 
-One static binary, no runtime dependencies. Windows: `cargo build --release`
-and take `target/release/mcp-sandman.exe`.
+### From source
+
+```bash
+cargo install --path .
+# or, with HTTP upstreams:
+cargo install --path . --features http
+```
+
+One static binary, ~2 MB. If you build it yourself and want the npm wrapper to
+use your copy, point it there:
+
+```bash
+export MCP_SANDMAN_BINARY=/path/to/mcp-sandman
+```
 
 ## Use
 
@@ -71,8 +96,36 @@ Wire it into your agent's MCP config:
 }
 ```
 
+With the npm package, `npx mcp-sandman` works the same way:
+
+```json
+{
+  "mcpServers": {
+    "db": {
+      "command": "npx",
+      "args": ["-y", "mcp-sandman", "--config", "/path/to/sandman.toml"]
+    }
+  }
+}
+```
+
 From here the agent sees only the two tools above, cannot write files, and can
 only reach the hosts you listed.
+
+### As a library
+
+```js
+import { serve, exposedTools, init } from 'mcp-sandman';
+
+// Spawn it as an MCP server.
+const proxy = serve({ config: './sandman.toml' });
+
+// Or ask what a policy exposes without serving anything.
+console.log(exposedTools('./sandman.toml')); // ['read_file', 'fetch_url']
+
+// Or generate a starter policy.
+console.log(init('npx -y @acme/db'));
+```
 
 ## Policy
 
@@ -111,6 +164,28 @@ secret_patterns = ['sk-[A-Za-z0-9]{20,}']
 `mcp-sandman check --config sandman.toml` validates it without connecting.
 `mcp-sandman doctor` connects, lists what survives, and is the fastest way to
 find a typo in a tool name.
+
+### HTTP upstreams
+
+Stdio is the default and what the npm build ships. To sandbox a remote server
+instead, enable the feature and switch the transport:
+
+```toml
+[upstream]
+transport = "http"
+url = "https://mcp.example.com/rpc"
+
+[upstream.headers]
+Authorization = "Bearer ${MCP_TOKEN}"   # expanded from the environment
+```
+
+```bash
+cargo build --release --features http
+```
+
+The sandbox posts JSON-RPC to that endpoint and handles either response shape
+the spec allows: a plain JSON body, or an SSE stream. The policy is applied
+identically in both modes — filtering the remote tool list and gating each call.
 
 ### Two rules worth knowing
 
@@ -165,7 +240,8 @@ the layer that is easy to adopt, because it needs no container runtime.
 ## Development
 
 ```bash
-cargo test              # 43 tests
+cargo test                      # 47 Rust tests
+npm test                        # 7 wrapper tests
 cargo build --release
 python fixtures/insecure_server.py    # a deliberately unsafe MCP server
 mcp-sandman --config fixtures/insecure.toml doctor
@@ -174,6 +250,18 @@ mcp-sandman --config fixtures/insecure.toml doctor
 `fixtures/insecure_server.py` exposes `read_file`, `write_file`, `fetch_url` and
 `delete_everything` with no checks of its own. It exists so the tests and the
 README describe a real, reproducible result rather than a hoped-for one.
+
+To work on the npm package:
+
+```bash
+node scripts/build-binaries.js     # cross-compile all six targets into dist/
+npm install                        # downloads your platform's binary into bin/
+node bin/mcp-sandman.js --help
+node scripts/publish.js --dry-run  # check what publishing would do
+```
+
+`cargo test --all-features` and `cargo clippy --all-features` are part of CI —
+the `http` feature is only compiled when enabled, so it needs explicit coverage.
 
 ## License
 
