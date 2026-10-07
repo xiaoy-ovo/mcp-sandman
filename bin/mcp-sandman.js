@@ -20,17 +20,17 @@ const binary = path.join(here, process.platform === 'win32' ? 'mcp-sandman.exe' 
 const missing = `
 mcp-sandman: the native binary is missing from ${binary}
 
-The npm package normally downloads it during install. To fix:
+No prebuilt binaries are published yet, so this usually means the postinstall
+download found nothing for your platform. Build it from source:
 
-  npm rebuild mcp-sandman
+  git clone https://github.com/xiaoy-ovo/mcp-sandman
+  cd mcp-sandman && cargo install --path .
 
-Or build it yourself and point the package at it:
+Already have a binary? Point the wrapper at it:
 
   export MCP_SANDMAN_BINARY=/path/to/mcp-sandman
 
-Or install the Rust toolchain once and use it directly:
-
-  cargo install --git https://github.com/xiaoy-ovo/mcp-sandman
+Or run it directly, bypassing this shim entirely.
 `.trim();
 
 /**

@@ -3,8 +3,9 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/xiaoy-ovo/mcp-sandman/main/install.sh | sh
 #
-# Downloads the release binary for your platform and drops it on your PATH, or
-# falls back to building from source with cargo when no matching release exists.
+# Tries a published release binary first, and falls back to building from
+# source with cargo. Note that no prebuilt binaries are published yet, so the
+# source path is what most people will actually take.
 
 set -eu
 

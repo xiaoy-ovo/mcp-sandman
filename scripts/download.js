@@ -102,11 +102,15 @@ function fromOptionalPackage() {
 /** Pull the release tarball for this platform out of GitHub. */
 function fromGitHub(triple) {
   const url = `https://github.com/${REPO}/releases/download/v${VERSION}/mcp-sandman-${triple}${archiveSuffix()}`;
-  log(`downloading ${url}`);
+  log(`looking for a prebuilt binary: ${url}`);
 
   const tmp = path.join(os.tmpdir(), `mcp-sandman-${triple}${archiveSuffix()}`);
   const fetch = download(url, tmp);
-  if (!fetch) return null;
+  if (!fetch) {
+    // No release assets are published yet. Saying so plainly is better than
+    // letting this look like a network problem the user should retry.
+    return null;
+  }
 
   const extracted = path.join(os.tmpdir(), `mcp-sandman-extract-${process.pid}`);
   fs.rmSync(extracted, { recursive: true, force: true });
@@ -197,11 +201,14 @@ async function main() {
   const source = sources.find(Boolean);
   if (!source) {
     log('');
-    log('could not download a prebuilt binary.');
-    log('Build it from source instead:');
-    log('  cargo install --git https://github.com/' + REPO);
+    log('No prebuilt binary is available for this platform.');
+    log('None are published yet — build it from source instead:');
     log('');
-    log('Or point MCP_SANDMAN_BINARY at an existing one.');
+    log('  git clone https://github.com/' + REPO);
+    log('  cd mcp-sandman && cargo install --path .');
+    log('');
+    log('Already have a binary? Point MCP_SANDMAN_BINARY at it and skip this step.');
+    log('');
     return;
   }
 

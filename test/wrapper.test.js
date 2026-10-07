@@ -111,7 +111,14 @@ test('postinstall downloads but never fails the install', () => {
   // The catch-all at the bottom is what keeps a network failure from turning
   // into a broken npm tree.
   assert.match(script, /main\(\)\.catch/);
-  assert.match(script, /could not download a prebuilt binary/);
+  assert.match(script, /No prebuilt binary is available for this platform/);
+  // And it must tell the truth about why: no binaries are published yet.
+  assert.match(script, /None are published yet/);
+  assert.doesNotMatch(
+    script,
+    /could not download a prebuilt binary/,
+    'the old wording implied a transient network failure rather than an absent release',
+  );
 });
 
 test('every publish script parses as an ES module', () => {

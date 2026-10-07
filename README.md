@@ -36,35 +36,86 @@ the server — decides what happens.
 npm install -g mcp-sandman
 ```
 
-The package downloads the native binary for your platform during install
-(darwin/linux/win32 × x64/arm64) and puts a `mcp-sandman` command on your PATH.
-It works with no Rust toolchain, no Docker, and no runtime dependencies.
-
-If the machine is offline at install time, the install still succeeds and
-prints what to do — npm packages that fail their `postinstall` leave you with
-a broken tree and no way to recover.
+The package downloads a prebuilt binary during install. **Read the support
+table below first — prebuilt binaries may not be published for your platform
+yet.** When none is available the install still succeeds and tells you how to
+build from source, because an npm package that fails its `postinstall` leaves
+you with a broken tree and no way to recover.
 
 ### Direct binary
 
 ```bash
-# macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/xiaoy-ovo/mcp-sandman/main/install.sh | sh
 ```
 
+The installer downloads a release binary. It falls back to a source build when
+no matching release exists.
+
 ### From source
 
+This works everywhere and is the only method guaranteed to work.
+
 ```bash
-cargo install --path .
-# or, with HTTP upstreams:
+git clone https://github.com/xiaoy-ovo/mcp-sandman
+cd mcp-sandman
+
+cargo build --release
+# binary at target/release/mcp-sandman   (.exe on Windows)
+
+# add HTTP upstream support (off by default, pulls in reqwest):
+cargo build --release --features http
+```
+
+Or install onto your PATH:
+
+```bash
+cargo install --path .              # stdio only, no extra dependencies
 cargo install --path . --features http
 ```
 
-One static binary, ~2 MB. If you build it yourself and want the npm wrapper to
-use your copy, point it there:
+If you build it yourself and want the npm wrapper to use your copy:
 
 ```bash
 export MCP_SANDMAN_BINARY=/path/to/mcp-sandman
 ```
+
+## Platform support
+
+Be aware of the difference between *the code compiles here* and *there is a
+binary you can install*.
+
+| Platform | Builds from source | Prebuilt binary |
+|---|---|---|
+| Windows x86_64 | verified in CI | not published |
+| macOS (Intel / Apple Silicon) | verified in CI | not published |
+| Linux x86_64 / arm64 (glibc) | verified in CI | not published |
+
+**CI compiles and tests on all three** — that is verified on every commit. What
+is *not* verified is a prebuilt binary download, because none has been published
+yet. Until they are, install from source.
+
+Two further caveats about the Linux build:
+
+- It links against **glibc**. On Alpine (musl) build with a musl target, or use
+  a `x86_64-unknown-linux-musl` build; the default binary will not run there.
+- The `container` isolation mode shells out to `docker`. It works on macOS and
+  Linux, and on Windows it needs Docker Desktop with a Linux backend — Windows
+  containers cannot run the node images these policies assume.
+
+Building a release for another platform:
+
+```bash
+rustup target add x86_64-unknown-linux-gnu   # or aarch64-unknown-linux-gnu,
+                                             # aarch64-apple-darwin, etc.
+cargo build --release --target <triple>
+```
+
+`scripts/build-binaries.js` does this for the six common targets using
+[`cross`](https://github.com/cross-rs/cross), but it has not been run in
+release mode yet — treat it as a starting point rather than a tested path.
+Rust code that spawns child processes and clears their environment does tend to
+have platform-specific corners; CI covering macOS and Linux is there because
+that is where they show up.
 
 ## Use
 
@@ -254,11 +305,17 @@ README describe a real, reproducible result rather than a hoped-for one.
 To work on the npm package:
 
 ```bash
-node scripts/build-binaries.js     # cross-compile all six targets into dist/
-npm install                        # downloads your platform's binary into bin/
+cargo build --release
+# On Windows, put the binary where the shim looks for it:
+cp target/release/mcp-sandman.exe bin/mcp-sandman.exe    # .exe on Windows
 node bin/mcp-sandman.js --help
-node scripts/publish.js --dry-run  # check what publishing would do
+
+node scripts/publish.js --dry-run   # check what publishing would do
 ```
+
+`npm install` cannot be used to test the download path until release binaries
+exist for your platform; use `MCP_SANDMAN_BINARY` to point the wrapper at a
+local build instead.
 
 `cargo test --all-features` and `cargo clippy --all-features` are part of CI —
 the `http` feature is only compiled when enabled, so it needs explicit coverage.
