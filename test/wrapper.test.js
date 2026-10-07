@@ -67,9 +67,25 @@ test('the CLI shim exists and is executable entry point', () => {
 
 test('package files list covers everything the entry points need', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  for (const required of ['bin/', 'index.js', 'index.d.ts', 'README.md', 'LICENSE']) {
+  for (const required of ['bin/mcp-sandman.js', 'index.js', 'index.d.ts', 'README.md', 'LICENSE']) {
     assert.ok(pkg.files.includes(required), `files must include ${required}`);
   }
+});
+
+test('the files list never names the bin directory itself', () => {
+  // `files: ["bin/"]` ships whatever the developer happens to have built
+  // there, including a Windows .exe in a package meant for every platform.
+  // The postinstall step places the binary after extraction, so the tarball
+  // must contain the shim and nothing else from that directory.
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.ok(
+    !pkg.files.includes('bin/'),
+    'listing `bin/` wholesale would publish a stray local build',
+  );
+  assert.ok(
+    pkg.files.includes('bin/mcp-sandman.js'),
+    'the shim itself must still be listed',
+  );
 });
 
 test('postinstall downloads but never fails the install', () => {
