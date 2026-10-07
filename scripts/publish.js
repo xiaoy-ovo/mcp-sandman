@@ -25,10 +25,17 @@ const VERSION = pkg.version;
 const log = (msg) => process.stderr.write(`${msg}\n`);
 
 /** npm is a .cmd shim on Windows and needs a shell to spawn. */
+/**
+ * Run a command, capturing output so a failure can be explained.
+ *
+ * npm prints the reason to stderr and `inherit` would swallow it from the
+ * error object, so publish captures instead of piping through and echoes on
+ * success.
+ */
 function run(command, args, options = {}) {
   log(`> ${command} ${args.join(' ')}`);
-  execFileSync(command, args, {
-    stdio: 'inherit',
+  return execFileSync(command, args, {
+    encoding: 'utf8',
     cwd: ROOT,
     ...(process.platform === 'win32' ? { shell: true } : {}),
     ...options,
@@ -74,6 +81,59 @@ function check() {
   }
 }
 
+/**
+ * Run npm.
+ *
+ * npm's own errors are the useful part here — a 401 or a 403 names the exact
+ * problem. Wrapping them in a raw stack trace buries that, so translate the
+ * common ones and print the guidance inline.
+ */
+function runNpm(args) {
+  try {
+    const output = run('npm', args);
+    if (output) log(output);
+  } catch (error) {
+    const output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+    if (output.trim()) log(output.trim());
+
+    if (error.status === 401 || /E401|not logged in/i.test(output)) {
+      log('');
+      log('npm rejected the credentials. Log in again:');
+      log('');
+      log('  npm login');
+      log('');
+      log('If you use two-factor auth, a plain login token cannot publish.');
+      log('Create one at https://www.npmjs.com/settings#access-tokens');
+      log('with Read and Write scope and Bypass 2FA enabled, then:');
+      log('');
+      log('  npm login --auth-type=legacy');
+      log('');
+      process.exit(1);
+    }
+
+    if (error.status === 403 || /E403|two-factor|2fa/i.test(output)) {
+      log('');
+      log('npm refused the publish. This is almost always the 2FA policy:');
+      log('');
+      log('  npm requires a granular access token with Bypass 2FA enabled.');
+      log('  A normal login token is not enough.');
+      log('');
+      log('Create one at https://www.npmjs.com/settings#access-tokens');
+      log('  Token type:      Automation (or Granular Access Token)');
+      log('  Permissions:    Read and Write');
+      log('  Packages:       Only select packages -> mcp-sandman');
+      log('  Bypass 2FA:     enabled');
+      log('');
+      log('Then:');
+      log('  npm login --auth-type=legacy');
+      log('');
+      process.exit(1);
+    }
+
+    throw error;
+  }
+}
+
 function main() {
   check();
 
@@ -84,13 +144,19 @@ function main() {
       process.platform === 'win32' ? 'mcp-sandman.exe' : 'mcp-sandman',
     );
     log(`\ndry run: would publish ${pkg.name}@${VERSION}`);
-    log(`  bundled binary: ${fs.existsSync(binary) ? `${binary} (${fs.statSync(binary).size} bytes)` : 'none'}`);
-    log(`  run: npm publish --access public`);
+    log(
+      `  bundled binary: ${
+        fs.existsSync(binary)
+          ? `${binary} (${fs.statSync(binary).size} bytes)`
+          : 'none for this platform'
+      }`,
+    );
+    log('  run: npm publish --access public');
     return;
   }
 
   // `prepublishOnly` builds and verifies the binary, so this is the last step.
-  run('npm', ['publish', '--access', 'public']);
+  runNpm(['publish', '--access', 'public']);
 
   log(`\npublished ${pkg.name}@${VERSION}`);
   log('install with:');
