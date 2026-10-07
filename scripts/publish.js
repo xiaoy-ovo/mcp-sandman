@@ -32,7 +32,8 @@ function run(command, args, options = {}) {
   execFileSync(command, args, { stdio: 'inherit', cwd: ROOT, ...options });
 }
 
-function git(*args) {
+/** Run git and return its trimmed stdout. */
+function git(...args) {
   return execFileSync('git', args, { encoding: 'utf8', cwd: ROOT }).trim();
 }
 

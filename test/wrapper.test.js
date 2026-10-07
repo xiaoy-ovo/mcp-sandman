@@ -7,6 +7,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -94,4 +95,26 @@ test('postinstall downloads but never fails the install', () => {
   // into a broken npm tree.
   assert.match(script, /main\(\)\.catch/);
   assert.match(script, /could not download a prebuilt binary/);
+});
+
+test('every publish script parses as an ES module', () => {
+  // A syntax error in a publishing script only surfaces at publish time, which
+  // is the worst possible moment to find one. Parse them here instead.
+  const scripts = ['download.js', 'build-binaries.js', 'publish.js'];
+  for (const name of scripts) {
+    const file = path.join(ROOT, 'scripts', name);
+    // `node --check` parses without executing, so this stays offline and safe.
+    const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
+    assert.equal(result.status, 0, `${name} failed to parse:\n${result.stderr}`);
+  }
+});
+
+test('scripts do not mix Python-style rest parameters into JavaScript', () => {
+  // Regression guard: publish.js shipped with `function git(*args)` once, which
+  // is a syntax error that only appeared when the script was actually run.
+  for (const name of ['download.js', 'build-binaries.js', 'publish.js', '../index.js']) {
+    const file = path.join(ROOT, 'scripts', name);
+    const source = fs.readFileSync(file, 'utf8');
+    assert.doesNotMatch(source, /function \w+\(\*/, `${name} looks like it has a stray *`);
+  }
 });
