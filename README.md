@@ -1,34 +1,33 @@
 # mcp-sandman
 
-**A policy-enforcing sandbox proxy for Model Context Protocol servers.**
+**MCP 服务器的策略沙箱代理。**
 
-Point your agent at `mcp-sandman` instead of at the MCP server directly. Every
-tool list, every tool call, every path and hostname passes through a policy you
-write, and anything the policy does not allow is refused before it reaches the
-server.
+中文 | [English](README.en.md)
+
+把 agent 的连接指向 `mcp-sandman`，而不是直接指向 MCP 服务器。工具列表、每一次
+工具调用、每一个路径和主机名，都要先过一遍你写的策略；策略不允许的，在到达服务器
+之前就被拒绝。
 
 ```
-agent ──stdio──▶ mcp-sandman ──stdio──▶ your MCP server
+agent ──stdio──▶ mcp-sandman ──stdio──▶ 你的 MCP 服务器
                    │
-                   ├── which tools exist
-                   ├── which paths may be read or written
-                   ├── which hosts may be reached
-                   └── an audit line for every decision
+                   ├── 有哪些工具
+                   ├── 哪些路径可以读、可以写
+                   ├── 可以访问哪些主机
+                   └── 每个决策写一行审计
 ```
 
-## Why
+## 为什么需要它
 
-You installed a third-party MCP server so your agent could read a database. It
-can also `read_file`, because nothing stopped it. The server is running with
-your credentials, in your shell, next to your SSH keys.
+你装了个第三方 MCP server，让 agent 能查数据库。但它同时也能 `read_file`——没人拦
+着它。它拿着你的凭据，跑在你的 shell 里，你的 SSH 私钥就在旁边。
 
-Most MCP tooling assumes the server is trustworthy and the agent is not. That
-assumption breaks down exactly when you install something you have not audited.
+绝大多数 MCP 工具默认「server 可信、agent 不可信」。而这个假设恰好在你装了个没审
+计过的包的时候失效。
 
-mcp-sandman inverts it: the server is treated as hostile, and the policy — not
-the server — decides what happens.
+mcp-sandman 把这个假设反过来：**server 视为敌意，最终由策略决定它能做什么。**
 
-## Install
+## 安装
 
 ### npm
 
@@ -36,96 +35,75 @@ the server — decides what happens.
 npm install -g mcp-sandman
 ```
 
-The package downloads a prebuilt binary during install. **Read the support
-table below first — prebuilt binaries may not be published for your platform
-yet.** When none is available the install still succeeds and tells you how to
-build from source, because an npm package that fails its `postinstall` leaves
-you with a broken tree and no way to recover.
+安装时会去找预编译二进制。**先看下面的支持表格——目前一个都还没发布。** 找不到时
+安装仍然会成功，并提示你从源码编译：npm 包如果在 `postinstall` 阶段失败，会留下一个
+坏掉的 `node_modules`，而且没法恢复。
 
-### Direct binary
+### 从源码编译
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/xiaoy-ovo/mcp-sandman/main/install.sh | sh
-```
-
-The installer downloads a release binary. It falls back to a source build when
-no matching release exists.
-
-### From source
-
-This works everywhere and is the only method guaranteed to work.
+这是唯一保证在任何平台都能用的方式。
 
 ```bash
 git clone https://github.com/xiaoy-ovo/mcp-sandman
 cd mcp-sandman
 
 cargo build --release
-# binary at target/release/mcp-sandman   (.exe on Windows)
+# 二进制在 target/release/mcp-sandman（Windows 上是 .exe）
 
-# add HTTP upstream support (off by default, pulls in reqwest):
+# 加上 HTTP 上游支持（默认关闭，会引入 reqwest 依赖）：
 cargo build --release --features http
 ```
 
-Or install onto your PATH:
+或者直接装到 PATH 上：
 
 ```bash
-cargo install --path .              # stdio only, no extra dependencies
+cargo install --path .              # 只支持 stdio，无额外依赖
 cargo install --path . --features http
 ```
 
-If you build it yourself and want the npm wrapper to use your copy:
+如果自己编译过，想让 npm 包装器用你这份：
 
 ```bash
 export MCP_SANDMAN_BINARY=/path/to/mcp-sandman
 ```
 
-## Platform support
+## 平台支持
 
-Be aware of the difference between *the code compiles here* and *there is a
-binary you can install*.
+要分清两件事：**代码在这个平台能编译** ≠ **有二进制可以直接下载安装**。
 
-| Platform | Builds from source | Prebuilt binary |
+| 平台 | 源码编译 | 预编译二进制 |
 |---|---|---|
-| Windows x86_64 | verified in CI | not published |
-| macOS (Intel / Apple Silicon) | verified in CI | not published |
-| Linux x86_64 / arm64 (glibc) | verified in CI | not published |
+| Windows x86_64 | CI 验证通过 | 未发布 |
+| macOS（Intel / Apple Silicon） | CI 验证通过 | 未发布 |
+| Linux x86_64 / arm64（glibc） | CI 验证通过 | 未发布 |
 
-**CI compiles and tests on all three** — that is verified on every commit. What
-is *not* verified is a prebuilt binary download, because none has been published
-yet. Until they are, install from source.
+**CI 在这三个平台上都编译并跑测试**——每次提交都验证这点。*没有*被验证的是「下载预
+编译二进制」，因为一个都还没发布。在那之前，请从源码编译。
 
-Two further caveats about the Linux build:
+两个实际会踩的坑：
 
-- It links against **glibc**. On Alpine (musl) build with a musl target, or use
-  a `x86_64-unknown-linux-musl` build; the default binary will not run there.
-- The `container` isolation mode shells out to `docker`. It works on macOS and
-  Linux, and on Windows it needs Docker Desktop with a Linux backend — Windows
-  containers cannot run the node images these policies assume.
+- Linux 版本链接的是 **glibc**。在 Alpine（musl）上要用 musl target 编译，默认的
+  二进制跑不起来。
+- `container` 隔离模式会调 `docker`。macOS 和 Linux 都能用；Windows 上需要 Docker
+  Desktop 的 Linux 后端——Windows 容器跑不了这些策略预设的 node 镜像。
 
-Building a release for another platform:
+编其他平台：
 
 ```bash
-rustup target add x86_64-unknown-linux-gnu   # or aarch64-unknown-linux-gnu,
-                                             # aarch64-apple-darwin, etc.
+rustup target add x86_64-unknown-linux-gnu   # 也可以是 aarch64-unknown-linux-gnu、
+                                             # aarch64-apple-darwin 等
 cargo build --release --target <triple>
 ```
 
-`scripts/build-binaries.js` does this for the six common targets using
-[`cross`](https://github.com/cross-rs/cross), but it has not been run in
-release mode yet — treat it as a starting point rather than a tested path.
-Rust code that spawns child processes and clears their environment does tend to
-have platform-specific corners; CI covering macOS and Linux is there because
-that is where they show up.
+## 使用
 
-## Use
-
-Generate a starter policy:
+生成一份起步策略：
 
 ```bash
 mcp-sandman init "npx -y @some/package" > sandman.toml
 ```
 
-Check what survives the policy:
+看策略放行了哪些工具：
 
 ```bash
 $ mcp-sandman --config sandman.toml doctor
@@ -134,7 +112,7 @@ $ mcp-sandman --config sandman.toml doctor
   fetch_url
 ```
 
-Wire it into your agent's MCP config:
+接进 agent 的 MCP 配置：
 
 ```json
 {
@@ -147,7 +125,7 @@ Wire it into your agent's MCP config:
 }
 ```
 
-With the npm package, `npx mcp-sandman` works the same way:
+用 npm 包的话，`npx mcp-sandman` 写法一样：
 
 ```json
 {
@@ -160,30 +138,29 @@ With the npm package, `npx mcp-sandman` works the same way:
 }
 ```
 
-From here the agent sees only the two tools above, cannot write files, and can
-only reach the hosts you listed.
+之后 agent 只看得见上面那两个工具，不能写文件，只能访问你列出的主机。
 
-### As a library
+### 作为库使用
 
 ```js
 import { serve, exposedTools, init } from 'mcp-sandman';
 
-// Spawn it as an MCP server.
+// 当作 MCP server 拉起来
 const proxy = serve({ config: './sandman.toml' });
 
-// Or ask what a policy exposes without serving anything.
+// 或者只问策略放行了什么，不真的启动
 console.log(exposedTools('./sandman.toml')); // ['read_file', 'fetch_url']
 
-// Or generate a starter policy.
+// 或者生成一份起步策略
 console.log(init('npx -y @acme/db'));
 ```
 
-## Policy
+## 策略
 
 ```toml
 name = "db-sandbox"
 
-# Top-level keys must come before any table.
+# 顶层键必须写在任何 [表] 之前
 audit_log = "./audit.log"
 
 [upstream]
@@ -192,13 +169,13 @@ command = "npx"
 args = ["-y", "@acme/db-mcp"]
 
 [tools]
-allow = ["query_*", "describe_*"]   # empty = everything the server exposes
+allow = ["query_*", "describe_*"]   # 留空 = 放行 server 提供的全部工具
 deny  = ["drop_*", "*_admin"]
-require_non_empty = true            # refuse to start if the policy hides all tools
+require_non_empty = true            # 策略把工具全挡掉时拒绝启动
 
 [filesystem]
-read  = ["**"]                      # relative to the working directory
-write = []                          # read-only by default
+read  = ["**"]                      # 相对于工作目录
+write = []                          # 默认只读
 
 [network]
 allow_hosts = ["*.internal.corp"]
@@ -208,18 +185,16 @@ allow_ports = [443]
 call_timeout_ms = 30000
 max_response_bytes = 8388608
 
-# Refuse calls whose arguments look like credentials.
+# 拒绝参数里看起来像凭据的调用
 secret_patterns = ['sk-[A-Za-z0-9]{20,}']
 ```
 
-`mcp-sandman check --config sandman.toml` validates it without connecting.
-`mcp-sandman doctor` connects, lists what survives, and is the fastest way to
-find a typo in a tool name.
+`mcp-sandman check --config sandman.toml` 校验策略但不连接任何东西。
+`mcp-sandman doctor` 会真的连上去，列出放行的工具——找工具名拼错最快的方式。
 
-### HTTP upstreams
+### HTTP 上游
 
-Stdio is the default and what the npm build ships. To sandbox a remote server
-instead, enable the feature and switch the transport:
+默认是 stdio，也是 npm 包带的那份。要沙箱化一个远程服务器，开 feature 并改传输方式：
 
 ```toml
 [upstream]
@@ -227,45 +202,41 @@ transport = "http"
 url = "https://mcp.example.com/rpc"
 
 [upstream.headers]
-Authorization = "Bearer ${MCP_TOKEN}"   # expanded from the environment
+Authorization = "Bearer ${MCP_TOKEN}"   # 从环境变量展开
 ```
 
 ```bash
 cargo build --release --features http
 ```
 
-The sandbox posts JSON-RPC to that endpoint and handles either response shape
-the spec allows: a plain JSON body, or an SSE stream. The policy is applied
-identically in both modes — filtering the remote tool list and gating each call.
+沙箱会往这个端点 POST JSON-RPC，两种响应格式都能处理：普通 JSON body，或者 SSE 流。
+两种模式下策略的行为完全一致。
 
-### Two rules worth knowing
+### 两条值得记住的规则
 
-**Absolute paths are refused unless the policy names absolute paths.** A policy
-of `read = ["**"]` matches relative paths only. This is deliberate: `**` in a
-glob engine matches across `/`, so without this rule `read = ["**"]` would
-silently permit `/etc/shadow`. Write `["/**"]` when you really do mean
-everything.
+**除非策略里写了绝对路径，否则绝对路径一律拒绝。** `read = ["**"]` 只匹配相对路径。
+这是故意设计的：glob 引擎里的 `**` 会跨 `/` 匹配，不加这条规则的话 `read = ["**"]`
+会悄悄放行 `/etc/shadow`。真要「全部放行」，就写 `["/**"]`。
 
-**The audit log records argument names, never values.** An audit trail that
-stores the arguments it recorded is itself a place secrets leak to.
+**审计日志只记参数名，绝不记参数值。** 一个把参数值存下来的审计日志，本身就是个泄密
+的地方。
 
-## Commands
+## 命令
 
-| Command | What it does |
+| 命令 | 作用 |
 |---|---|
-| `mcp-sandman` (or `run`) | Serve on stdio. The default. |
-| `mcp-sandman check` | Validate the policy. Connects to nothing. |
-| `mcp-sandman doctor` | Connect and list the tools that survive. |
-| `mcp-sandman init <cmd>` | Print a starter policy for a command. |
+| `mcp-sandman`（或 `run`） | 在 stdio 上服务，默认行为 |
+| `mcp-sandman check` | 校验策略，不连接 |
+| `mcp-sandman doctor` | 连接并列出放行的工具 |
+| `mcp-sandman init <cmd>` | 为一条命令生成起步策略 |
 
-Logs go to **stderr**, always. stdout carries the JSON-RPC stream.
+日志永远走 **stderr**。stdout 是 JSON-RPC 流。
 
-## What this is not
+## 它不是什么
 
-mcp-sandman inspects the *arguments* an agent sends. A server that builds a
-path at runtime, or reads a file the agent never named, is not stopped by
-argument inspection. For an untrusted server, pair this with the container
-isolation mode:
+mcp-sandman 检查的是 agent 发出的**参数**。如果 server 在运行时自己拼路径，或者读了
+一个 agent 根本没提到的文件，参数检查拦不住它。真正不可信的 server，请配合容器隔离
+模式：
 
 ```toml
 [isolation]
@@ -274,62 +245,59 @@ image = "node:22-slim"
 args = ["--network=none", "--read-only"]
 ```
 
-That is the layer that holds regardless of what the server does. mcp-sandman is
-the layer that is easy to adopt, because it needs no container runtime.
+那一层无论 server 做什么都拦得住。mcp-sandman 的价值在于它不需要容器运行时，容易被
+采纳。
 
-## Safety notes
+## 安全细节
 
-- The upstream process starts with a **cleared environment**. It gets `PATH`,
-  `HOME` and locale, plus whatever `[upstream.env]` names — not the full
-  environment of whatever launched the agent.
-- Denials are returned as tool *results* with `isError: true`, not as protocol
-  errors. The agent can read what was refused and adjust; the session survives.
-- Denial messages say **why**. "Path X is outside this policy" sends the agent
-  looking for a different path; "tool not available" sends it looking for a
-  different tool.
+- 上游进程启动时环境变量是**清空的**。只给它 `PATH`、`HOME`、locale，加上
+  `[upstream.env]` 里明确列出的变量——而不是启动 agent 的那个进程的全部环境。
+- 拒绝是以 `isError: true` 的工具**返回值**给出的，不是协议层错误。agent 能读到拒绝
+  原因并调整，会话不会中断。
+- 拒绝信息会说明**为什么**。「路径 X 不在策略范围内」会让 agent 换个路径再试；
+  「工具不可用」会让它满世界找别的工具。
 
-## Development
+## 开发
 
 ```bash
-cargo test                      # 47 Rust tests
-npm test                        # 7 wrapper tests
+cargo test --all-features      # 52 个 Rust 测试
+npm test                        # 11 个包装器测试
+cargo clippy --all-targets --all-features
 cargo build --release
-python fixtures/insecure_server.py    # a deliberately unsafe MCP server
+python fixtures/insecure_server.py    # 一个故意不安全的 MCP server
 mcp-sandman --config fixtures/insecure.toml doctor
 ```
 
-`fixtures/insecure_server.py` exposes `read_file`, `write_file`, `fetch_url` and
-`delete_everything` with no checks of its own. It exists so the tests and the
-README describe a real, reproducible result rather than a hoped-for one.
+`fixtures/insecure_server.py` 提供了 `read_file`、`write_file`、`fetch_url`、
+`delete_everything`，自身没有任何检查。它存在是为了让测试和这份文档描述的是真实、
+可复现的结果，而不是一厢情愿的设想。
 
-To work on the npm package:
+改 npm 包时：
 
 ```bash
 cargo build --release
-# On Windows, put the binary where the shim looks for it:
-cp target/release/mcp-sandman.exe bin/mcp-sandman.exe    # .exe on Windows
+cp target/release/mcp-sandman.exe bin/mcp-sandman.exe    # Windows 上是 .exe
 node bin/mcp-sandman.js --help
 
-node scripts/publish.js --dry-run   # check what publishing would do
+node scripts/publish.js --dry-run
 ```
 
-`npm install` cannot be used to test the download path until release binaries
-exist for your platform; use `MCP_SANDMAN_BINARY` to point the wrapper at a
-local build instead.
+在预编译二进制发布之前，`npm install` 没法验证下载路径；用 `MCP_SANDMAN_BINARY`
+指向本地编译产物。
 
-`cargo test --all-features` and `cargo clippy --all-features` are part of CI —
-the `http` feature is only compiled when enabled, so it needs explicit coverage.
+CI 里包含 `cargo test --all-features` 和 `cargo clippy --all-features`——`http`
+feature 只在开启时编译，所以需要显式覆盖。
 
-## License
+## 许可证
 
 MIT
 
-## Credits
+## 致谢
 
-The design draws on prior work in this space:
-[pro-vi/mcp-filter](https://github.com/pro-vi/mcp-filter) for the proxy-as-
-middleware shape and config-driven tool rules,
+设计思路借鉴了这个领域已有的工作：
+[pro-vi/mcp-filter](https://github.com/pro-vi/mcp-filter) 的中间代理形态和配置驱动
+的工具规则，
 [Automata-Labs/code-sandbox-mcp](https://github.com/Automata-Labs-team/code-sandbox-mcp)
-for container lifecycle handling, and the
-[Model Context Protocol](https://modelcontextprotocol.io) specification for the
-protocol itself. All code here is original.
+的容器生命周期处理，以及
+[Model Context Protocol](https://modelcontextprotocol.io) 协议规范本身。本仓库所有
+代码均为原创。

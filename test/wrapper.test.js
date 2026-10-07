@@ -73,6 +73,23 @@ test('package files list covers everything the entry points need', () => {
   }
 });
 
+test('both READMEs ship and cross-link', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.ok(pkg.files.includes('README.en.md'), 'the English README must ship too');
+
+  const chinese = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  const english = fs.readFileSync(path.join(ROOT, 'README.en.md'), 'utf8');
+
+  assert.match(chinese, /\[English\]\(README\.en\.md\)/, 'the Chinese README links to the English one');
+  assert.match(english, /\[中文文档\]\(README\.md\)/, 'the English README links to the Chinese one');
+
+  // A stray U+FFFD means a multibyte character got mangled somewhere in the
+  // toolchain, and it is invisible in a diff.
+  for (const [name, text] of [['README.md', chinese], ['README.en.md', english]]) {
+    assert.ok(!text.includes('�'), `${name} contains a replacement character`);
+  }
+});
+
 test('the postinstall script ships inside the tarball', () => {
   // The `files` whitelist is applied at pack time, and postinstall runs from
   // the installed tree. If the downloader is not listed, every install fails
