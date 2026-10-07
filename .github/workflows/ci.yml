@@ -56,18 +56,20 @@ jobs:
             target: x86_64-apple-darwin
           - runner: macos-14
             target: aarch64-apple-darwin
-          # Linux and Windows cross-compile from Linux via Docker.
+          # Windows builds on a Windows runner: cross's MSVC images need the
+          # full desktop SDK, which the container does not carry, and a
+          # native runner already has it.
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - runner: windows-latest
+            target: aarch64-pc-windows-msvc
+          # Linux cross-compiles from Linux via cross, which is what it is good
+          # at.
           - runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             cross: true
           - runner: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            cross: true
-          - runner: ubuntu-latest
-            target: x86_64-pc-windows-msvc
-            cross: true
-          - runner: ubuntu-latest
-            target: aarch64-pc-windows-msvc
             cross: true
     runs-on: ${{ matrix.runner }}
     steps:
@@ -91,19 +93,15 @@ jobs:
           cargo install cross --git https://github.com/cross-rs/cross --locked
 
       - name: Build
-        run: |
-          if [ "${{ matrix.cross }}" = "true" ]; then
-            cross build --release --features http --target ${{ matrix.target }}
-          else
-            cargo build --release --features http --target ${{ matrix.target }}
-          fi
+        run: cargo build --release --features http --target ${{ matrix.target }}
 
       - name: Package
         shell: bash
         run: |
           BIN=mcp-sandman
-          [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ] && BIN=mcp-sandman.exe
-          [ "${{ matrix.target }}" = "aarch64-pc-windows-msvc" ] && BIN=mcp-sandman.exe
+          case "${{ matrix.target }}" in
+            *windows*) BIN=mcp-sandman.exe ;;
+          esac
 
           STAGE="stage-${{ matrix.target }}"
           mkdir -p "$STAGE"
