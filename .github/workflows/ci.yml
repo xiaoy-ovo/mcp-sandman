@@ -3,6 +3,10 @@ name: ci
 on:
   push:
     branches: [main]
+    # `branches` and `tags` are mutually exclusive filters: listing branches
+    # alone means tag pushes never trigger a run. Both are needed, otherwise
+    # the release job never fires.
+    tags: ['v*']
   pull_request:
 
 env:
